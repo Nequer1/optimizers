@@ -1,0 +1,92 @@
+import torch
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.nn.functional as F
+from torch.autograd import Variable
+import torch.utils.data as Data
+
+
+#hyper parameters
+LR = 0.01
+BATCH_SIZE = 32
+EPOCH = 12
+
+x = torch.unsqueeze(torch.linspace(-1, 1, 1000), dim=1)          #伪数据x,范围是-1到+1,均分为10000
+y = x.pow(2) + 0.2*torch.rand(x.size())                         #伪数据y,为x的平方+噪声
+
+
+
+
+train_data = Data.TensorDataset(data_tensor = x, target_tensor = y)
+
+
+loader = Data.DataLoader(
+    dataset = train_data,
+    batch_size = BATCH_SIZE,
+    shuffle = True,
+    num_workers = 2
+)
+
+
+x = Variable(x)                                                 #将x数据放入Variable              
+y = Variable(y)                                                 #将y数据放入Variable
+
+print("原始图像：")
+plt.scatter(x.data.numpy(), y.data.numpy())
+plt.show()                                                      #可视化数据
+
+
+class NN(torch.nn.Module):                                      
+    def __init__(self, n_feature, n_hidden, n_output):
+        super(NN, self).__init__()
+        self.hidden = torch.nn.Linear(n_feature, n_hidden)
+        self.output = torch.nn.Linear(n_hidden, n_output)
+    def forward(self, x):
+        x = F.relu(self.hidden(x))
+        x = self.output(x)
+        return x
+
+    
+#different nns   
+SGD_nn = NN(1, 20 ,1)
+Momentum_nn = NN(1, 20 ,1)
+RMSprop_nn = NN(1, 20, 1)
+Adam_nn = NN(1, 20, 1)
+nets = [SGD_nn, Momentum_nn, RMSprop_nn, Adam_nn]
+
+
+opt_SGD = torch.optim.SGD(SGD_nn.parameters(), lr = LR)
+opt_Momentum = torch.optim.SGD(Momentum_nn.parameters(), lr = LR, momentum = 0.8)
+opt_RMSprop = torch.optim.RMSprop(RMSprop_nn.parameters(), lr = LR, alpha = 0.9)
+opt_Adam = torch.optim.Adam(Adam_nn.parameters(), lr = LR, betas = (0.9, 0.99))
+optimizers = [opt_SGD, opt_Momentum, opt_RMSprop, opt_Adam]
+
+
+loss_function = torch.nn.MSELoss()
+loss_his = [[],[],[],[]]
+
+
+for epoch in range(EPOCH):
+    for step, (b_x, b_y) in enumerate(loader):
+        x = Variable(b_x)
+        y = Variable(b_y)
+        
+        
+        for net, opt, l_his in zip(nets, optimizers, loss_his):
+            output = net(x)
+            loss = loss_function(output, y)
+            
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            l_his.append(loss.data[0])
+            
+            
+label = ["SGD", "Momentum", "RMSprop", "Adam"]
+for i , l_his in enumerate(loss_his):
+    plt.plot(l_his, label = label[i])
+plt.legend(loc = "best")
+plt.x_label = "step"
+plt.y_label = "loss"
+plt.ylim((0,0.2))
+plt.show()
